@@ -35,6 +35,12 @@ if (NOT DEFINED CMAKE_INSTALL_LIBDIR)
 	include(GNUInstallDirs)
 endif()
 
+set (CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS "-dynamiclib -undefined suppress -flat_namespace")
+set (CMAKE_SHARED_MODULE_CREATE_C_FLAGS "-bundle")
+set (CMAKE_SHARED_MODULE_LOADER_C_FLAG "-Wl,-bundle_loader,")
+set (CMAKE_SHARED_MODULE_LOADER_CXX_FLAG "-Wl,-bundle_loader,")
+set (CMAKE_FIND_LIBRARY_SUFFIXES ".dylib" ".so" ".a")
+
 set (SRT_VERSION 1.3.0)
 set_version_variables(SRT_VERSION ${SRT_VERSION})
 
