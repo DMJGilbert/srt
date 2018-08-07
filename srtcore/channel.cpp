@@ -100,8 +100,8 @@ m_iIPversion(AF_INET),
 m_iSockAddrSize(sizeof(sockaddr_in)),
 m_iSocket(),
 #ifdef SRT_ENABLE_IPOPTS
-m_iIpTTL(-1),
-m_iIpToS(-1),
+m_iIpTTL(-1),   /* IPv4 TTL or IPv6 HOPs [1..255] (-1:undefined) */
+m_iIpToS(-1),   /* IPv4 Type of Service or IPv6 Traffic Class [0x00..0xff] (-1:undefined) */
 #endif
 m_iSndBufSize(65536),
 m_iRcvBufSize(65536)
@@ -183,7 +183,7 @@ void CChannel::attach(UDPSOCKET udpsock)
 
 void CChannel::setUDPSockOpt()
 {
-   #if defined(BSD) || defined(OSX) || defined(TARGET_OS_IOS) || defined(TARGET_OS_TV)
+   #if defined(BSD) || defined(OSX) || (TARGET_OS_IOS == 1) || (TARGET_OS_TV == 1)
       // BSD system will fail setsockopt if the requested buffer size exceeds system maximum value
       int maxsize = 64000;
       if (0 != ::setsockopt(m_iSocket, SOL_SOCKET, SO_RCVBUF, (char*)&m_iRcvBufSize, sizeof(int)))
@@ -198,18 +198,37 @@ void CChannel::setUDPSockOpt()
    #endif
 
 #ifdef SRT_ENABLE_IPOPTS
-      if ((-1 != m_iIpTTL)
-      &&  (0 != ::setsockopt(m_iSocket, IPPROTO_IP, IP_TTL, (const char*)&m_iIpTTL, sizeof(m_iIpTTL))))
-         throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
-         
-      if ((-1 != m_iIpToS)
-      &&  (0 != ::setsockopt(m_iSocket, IPPROTO_IP, IP_TOS, (const char*)&m_iIpToS, sizeof(m_iIpToS))))
-         throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
+      if (-1 != m_iIpTTL)
+      {
+         if(m_iIPversion == AF_INET)
+         {
+            if(0 != ::setsockopt(m_iSocket, IPPROTO_IP, IP_TTL, (const char*)&m_iIpTTL, sizeof(m_iIpTTL)))
+               throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
+         }
+         else //Assuming AF_INET6
+         {
+            if(0 != ::setsockopt(m_iSocket, IPPROTO_IPV6, IPV6_UNICAST_HOPS, (const char*)&m_iIpTTL, sizeof(m_iIpTTL)))
+               throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
+         }
+      }   
+      if (-1 != m_iIpToS)
+      {
+         if(m_iIPversion == AF_INET)
+         {
+            if(0 != ::setsockopt(m_iSocket, IPPROTO_IP, IP_TOS, (const char*)&m_iIpToS, sizeof(m_iIpToS)))
+               throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
+         }
+         else //Assuming AF_INET6
+         {
+            if(0 != ::setsockopt(m_iSocket, IPPROTO_IPV6, IPV6_TCLASS, (const char*)&m_iIpToS, sizeof(m_iIpToS)))
+               throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
+         }
+      }
 #endif
 
    timeval tv;
    tv.tv_sec = 0;
-   #if defined (BSD) || defined (OSX) || defined(TARGET_OS_IOS) || defined(TARGET_OS_TV)
+   #if defined (BSD) || defined (OSX) || (TARGET_OS_IOS == 1) || (TARGET_OS_TV == 1)
       // Known BSD bug as the day I wrote this code.
       // A small time out value will cause the socket to block forever.
       tv.tv_usec = 10000;
@@ -271,14 +290,28 @@ void CChannel::setRcvBufSize(int size)
 int CChannel::getIpTTL() const
 {
    socklen_t size = sizeof(m_iIpTTL);
-   ::getsockopt(m_iSocket, IPPROTO_IP, IP_TTL, (char *)&m_iIpTTL, &size);
+   if (m_iIPversion == AF_INET)
+   {
+      ::getsockopt(m_iSocket, IPPROTO_IP, IP_TTL, (char *)&m_iIpTTL, &size);
+   }
+   else
+   {
+      ::getsockopt(m_iSocket, IPPROTO_IPV6, IPV6_UNICAST_HOPS, (char *)&m_iIpTTL, &size);
+   }
    return m_iIpTTL;
 }
 
 int CChannel::getIpToS() const
 {
    socklen_t size = sizeof(m_iIpToS);
-   ::getsockopt(m_iSocket, IPPROTO_IP, IP_TOS, (char *)&m_iIpToS, &size);
+   if(m_iIPversion == AF_INET)
+   {
+      ::getsockopt(m_iSocket, IPPROTO_IP, IP_TOS, (char *)&m_iIpToS, &size);
+   }
+   else
+   {
+      ::getsockopt(m_iSocket, IPPROTO_IPV6, IPV6_TCLASS, (char *)&m_iIpToS, &size);
+   }
    return m_iIpToS;
 }
 

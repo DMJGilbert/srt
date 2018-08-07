@@ -41,7 +41,7 @@ set (CMAKE_SHARED_MODULE_LOADER_C_FLAG "-Wl,-bundle_loader,")
 set (CMAKE_SHARED_MODULE_LOADER_CXX_FLAG "-Wl,-bundle_loader,")
 set (CMAKE_FIND_LIBRARY_SUFFIXES ".dylib" ".so" ".a")
 
-set (SRT_VERSION 1.3.0)
+set (SRT_VERSION 1.3.1)
 set_version_variables(SRT_VERSION ${SRT_VERSION})
 
 # The CMAKE_BUILD_TYPE seems not to be always set, weird.
@@ -85,6 +85,7 @@ option(ENABLE_CXX11 "Should the c++11 parts (srt-live-transmit) be enabled" ON)
 option(ENABLE_PROFILE "Should instrument the code for profiling. Ignored for non-GNU compiler." $ENV{HAI_BUILD_PROFILE})
 option(ENABLE_LOGGING "Should logging be enabled" ON)
 option(ENABLE_HEAVY_LOGGING "Should heavy debug logging be enabled" ${ENABLE_HEAVY_LOGGING_DEFAULT})
+option(ENABLE_HAICRYPT_LOGGING "Should logging in haicrypt be enabled" 0)
 option(ENABLE_SHARED "Should libsrt be built as a shared library" ON)
 option(ENABLE_STATIC "Should libsrt be built as a static library" ON)
 option(ENABLE_SUFLIP "Should suflip tool be built" OFF)
@@ -251,6 +252,15 @@ if (USE_STATIC_LIBSTDCXX)
 	endif()
 endif()
 
+# This options is necessary on some systems; on a cross-ARM compiler it
+# has been detected, for example, that -lrt is necessary for some applications
+# because clock_gettime is needed by some functions and it is alternatively
+# provided by libc, but only in newer versions. This options is rarely necessary,
+# but may help in several corner cases in unusual platforms.
+if (WITH_EXTRALIBS)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${WITH_EXTRALIBS}")
+endif()
+
 # CMake has only discovered in 3.3 version that some set-finder is
 # necessary. Using variables for shortcut to a clumsy check syntax.
 
@@ -305,6 +315,14 @@ if (ENABLE_LOGGING)
 	if (ENABLE_HEAVY_LOGGING)
 		list(APPEND SRT_EXTRA_CFLAGS "-DENABLE_HEAVY_LOGGING=1")
 	endif()
+	if (ENABLE_HAICRYPT_LOGGING)
+		if (ENABLE_HAICRYPT_LOGGING STREQUAL 2) # Allow value 2 for INSECURE DEBUG logging
+			message(WARNING " *** ENABLED INSECURE HAICRYPT LOGGING - USE FOR TESTING ONLY!!! ***")
+			list(APPEND SRT_EXTRA_CFLAGS "-DENABLE_HAICRYPT_LOGGING=2")
+		else()
+			list(APPEND SRT_EXTRA_CFLAGS "-DENABLE_HAICRYPT_LOGGING=1")
+		endif()
+	endif()
 endif()
 
 if (ENABLE_GETNAMEINFO)
@@ -326,15 +344,7 @@ if (${ENABLE_PROFILE} AND HAVE_COMPILER_GNU_COMPAT)
 endif()
 
 if (MINGW)
-	set (PTHREAD_LIBRARY -lpthreadGC2)
-	# XXX CONSIDER THIS. It came from a merged previous master version
-	# and was under an if(NOT MINGW)...elseif(THREADS_FOUND) condition.
-	# Might be that the current form still suffices; resolve this and remove comment.
-	#if(THREADS_FOUND)
-	#set(PTHREAD_LIBRARY ${CMAKE_THREAD_LIBS_INIT})
-	#else()
 	find_library(PTHREAD_LIBRARY NAMES pthread pthreadGC2 pthreadGC)
-	#endif() 
 elseif (PTHREAD_LIBRARY AND PTHREAD_INCLUDE_DIR)
 	message(STATUS "Pthread library: ${PTHREAD_LIBRARY}")
 	message(STATUS "Pthread include dir: ${PTHREAD_INCLUDE_DIR}")
@@ -438,7 +448,6 @@ endif()
 # will now apply to the dependent library.
 #list(APPEND SOURCES_srt ${SOURCES_haicrypt})
 set (VIRTUAL_srt $<TARGET_OBJECTS:srt_virtual> $<TARGET_OBJECTS:haicrypt_virtual>)
-set (HEADERS_srt ${HEADERS_srt} ${HEADERS_srt_win32})
 
 if (srt_libspec_shared)
 	add_library(${TARGET_srt}_shared SHARED ${VIRTUAL_srt})
@@ -660,10 +669,9 @@ endmacro()
 if ( ENABLE_CXX11 )
 
 	# Make a virtual library of all shared app files
-	MafRead(apps/support.maf
-		SOURCES SOURCES_support_indir
+	MafReadDir(apps support.maf
+		SOURCES SOURCES_support
 	)
-	adddirname(apps "${SOURCES_support_indir}" SOURCES_support)
 
 	# A special trick that makes the shared application sources
 	# to be compiled once for all applications. Maybe this virtual
@@ -721,8 +729,7 @@ if ( ENABLE_CXX11 )
 			#
 			# For testing applications, every application has its exclusive
 			# list of source files in its own Manifest file.
-			MafRead(testing/${name}.maf SOURCES SOURCES_app_indir)
-			adddirname(testing "${SOURCES_app_indir}" SOURCES_app)
+			MafReadDir(testing ${name}.maf SOURCES SOURCES_app)
 			srt_add_program(${name} ${SOURCES_app})
 		endmacro()
 
@@ -738,6 +745,10 @@ if ( ENABLE_CXX11 )
 			srt_add_testprogram(srt-test-file)
 			srt_make_application(srt-test-file)
 		endif()
+
+		srt_add_testprogram(srt-test-relay)
+		srt_make_application(srt-test-relay)
+		target_compile_definitions(srt-test-relay PUBLIC -DSRT_ENABLE_VERBOSE_LOCK)
 	endif()
 
 endif()
