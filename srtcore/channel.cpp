@@ -91,9 +91,7 @@ modified by
 #endif
 
 using namespace std;
-
-
-extern logging::Logger mglog;
+using namespace srt_logging;
 
 CChannel::CChannel():
 m_iIPversion(AF_INET),
@@ -104,7 +102,8 @@ m_iIpTTL(-1),   /* IPv4 TTL or IPv6 HOPs [1..255] (-1:undefined) */
 m_iIpToS(-1),   /* IPv4 Type of Service or IPv6 Traffic Class [0x00..0xff] (-1:undefined) */
 #endif
 m_iSndBufSize(65536),
-m_iRcvBufSize(65536)
+m_iRcvBufSize(65536),
+m_iIpV6Only(-1)
 {
 }
 
@@ -117,6 +116,7 @@ m_iIpToS(-1),
 #endif
 m_iSndBufSize(65536),
 m_iRcvBufSize(65536),
+m_iIpV6Only(-1),
 m_BindAddr(version)
 {
    m_iSockAddrSize = (AF_INET == m_iIPversion) ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
@@ -137,6 +137,9 @@ void CChannel::open(const sockaddr* addr)
       if (m_iSocket < 0)
    #endif
       throw CUDTException(MJ_SETUP, MN_NONE, NET_ERROR);
+
+   if ((m_iIpV6Only != -1) && (m_iIPversion == AF_INET6)) // (not an error if it fails)
+      ::setsockopt(m_iSocket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)(&m_iIpV6Only), sizeof(m_iIpV6Only));
 
    if (NULL != addr)
    {
@@ -162,7 +165,8 @@ void CChannel::open(const sockaddr* addr)
       if (0 != ::getaddrinfo(NULL, "0", &hints, &res))
          throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
 
-      if (0 != ::bind(m_iSocket, res->ai_addr, (int) res->ai_addrlen))
+      // On Windows ai_addrlen has type size_t (unsigned), while bind takes int.
+      if (0 != ::bind(m_iSocket, res->ai_addr, (socklen_t) res->ai_addrlen))
          throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
       memcpy(&m_BindAddr, res->ai_addr, res->ai_addrlen);
       m_BindAddr.len = (socklen_t) res->ai_addrlen;
@@ -220,7 +224,9 @@ void CChannel::setUDPSockOpt()
          }
          else //Assuming AF_INET6
          {
+#ifdef IPV6_TCLASS
             if(0 != ::setsockopt(m_iSocket, IPPROTO_IPV6, IPV6_TCLASS, (const char*)&m_iIpToS, sizeof(m_iIpToS)))
+#endif
                throw CUDTException(MJ_SETUP, MN_NORES, NET_ERROR);
          }
       }
@@ -286,6 +292,11 @@ void CChannel::setRcvBufSize(int size)
    m_iRcvBufSize = size;
 }
 
+void CChannel::setIpV6Only(int ipV6Only) 
+{
+   m_iIpV6Only = ipV6Only;
+}
+
 #ifdef SRT_ENABLE_IPOPTS
 int CChannel::getIpTTL() const
 {
@@ -310,7 +321,9 @@ int CChannel::getIpToS() const
    }
    else
    {
+#ifdef IPV6_TCLASS
       ::getsockopt(m_iSocket, IPPROTO_IPV6, IPV6_TCLASS, (char *)&m_iIpToS, &size);
+#endif
    }
    return m_iIpToS;
 }
@@ -365,7 +378,7 @@ void CChannel::getPeerAddr(sockaddr* addr) const
 
 int CChannel::sendto(const sockaddr* addr, CPacket& packet) const
 {
-#if ENABLE_LOGGING
+#if ENABLE_HEAVY_LOGGING
     std::ostringstream spec;
 
     if (packet.isControl())
@@ -390,7 +403,7 @@ int CChannel::sendto(const sockaddr* addr, CPacket& packet) const
    // convert control information into network order
    // XXX USE HtoNLA!
    if (packet.isControl())
-      for (ptrdiff_t i = 0, n = (ptrdiff_t) packet.getLength() / 4; i < n; ++i)
+      for (ptrdiff_t i = 0, n = packet.getLength() / 4; i < n; ++i)
          *((uint32_t *)packet.m_pcData + i) = htonl(*((uint32_t *)packet.m_pcData + i));
 
    // convert packet header into network order
