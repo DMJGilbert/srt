@@ -441,6 +441,14 @@ int CUDTUnited::newConnection(const SRTSOCKET listen, const sockaddr* peer, CHan
        // bind to the same addr of listening socket
        ns->m_pUDT->open();
        updateListenerMux(ns, ls);
+       if (ls->m_pUDT->m_cbAcceptHook)
+       {
+           if (!ls->m_pUDT->runAcceptHook(ns->m_pUDT, peer, hs, hspkt))
+           {
+               error = 1;
+               goto ERR_ROLLBACK;
+           }
+       }
        ns->m_pUDT->acceptAndRespond(peer, hs, hspkt);
    }
    catch (...)
@@ -518,6 +526,23 @@ int CUDTUnited::newConnection(const SRTSOCKET listen, const sockaddr* peer, CHan
    pthread_mutex_unlock(&(ls->m_AcceptLock));
 
    return 1;
+}
+
+int CUDTUnited::installAcceptHook(const SRTSOCKET lsn, srt_listen_callback_fn* hook, void* opaq)
+{
+    try
+    {
+        CUDT* lc = lookup(lsn);
+        lc->installAcceptHook(hook, opaq);
+
+    }
+    catch (CUDTException& e)
+    {
+        setError(new CUDTException(e));
+        return SRT_ERROR;
+    }
+
+    return 0;
 }
 
 CUDT* CUDTUnited::lookup(const SRTSOCKET u)
@@ -1604,19 +1629,28 @@ void CUDTUnited::removeSocket(const SRTSOCKET u)
       return;
    }
 
-   m->second.m_iRefCount --;
+   CMultiplexer& mx = m->second;
+
+   mx.m_iRefCount --;
    // HLOGF(mglog.Debug, "unrefing underlying socket for %u: %u\n",
-   //    u, m->second.m_iRefCount);
-   if (0 == m->second.m_iRefCount)
+   //    u, mx.m_iRefCount);
+   if (0 == mx.m_iRefCount)
    {
        HLOGC(mglog.Debug, log << "MUXER id=" << mid << " lost last socket %"
            << u << " - deleting muxer bound to port "
-           << m->second.m_pChannel->bindAddressAny().hport());
-      m->second.m_pChannel->close();
-      delete m->second.m_pSndQueue;
-      delete m->second.m_pRcvQueue;
-      delete m->second.m_pTimer;
-      delete m->second.m_pChannel;
+           << mx.m_pChannel->bindAddressAny().hport());
+      // The channel has no access to the queues and
+      // it looks like the multiplexer is the master of all of them.
+      // The queues must be silenced before closing the channel
+      // because this will cause error to be returned in any operation
+      // being currently done in the queues, if any.
+      mx.m_pSndQueue->setClosing();
+      mx.m_pRcvQueue->setClosing();
+      mx.m_pChannel->close();
+      delete mx.m_pSndQueue;
+      delete mx.m_pRcvQueue;
+      delete mx.m_pTimer;
+      delete mx.m_pChannel;
       m_mMultiplexer.erase(m);
    }
 }

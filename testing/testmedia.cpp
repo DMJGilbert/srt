@@ -38,7 +38,8 @@ volatile bool transmit_throw_on_interrupt = false;
 int transmit_bw_report = 0;
 unsigned transmit_stats_report = 0;
 size_t transmit_chunk_size = SRT_LIVE_DEF_PLSIZE;
-
+srt_listen_callback_fn* transmit_accept_hook_fn = nullptr;
+void* transmit_accept_hook_op = nullptr;
 
 string DirectionName(SRT_EPOLL_OPT direction)
 {
@@ -101,6 +102,10 @@ public:
     //~FileSource() { ifile.close(); }
 };
 
+#ifdef PLEASE_LOG
+#include "logging.h"
+#endif
+
 class FileTarget: public virtual Target
 {
     ofstream ofile;
@@ -111,12 +116,23 @@ public:
     void Write(const bytevector& data) override
     {
         ofile.write(data.data(), data.size());
+#ifdef PLEASE_LOG
+        extern logging::Logger applog;
+        applog.Debug() << "FileTarget::Write: " << data.size() << " written to a file";
+#endif
     }
 
     bool IsOpen() override { return !!ofile; }
     bool Broken() override { return !ofile.good(); }
     //~FileTarget() { ofile.close(); }
-    void Close() override { ofile.close(); }
+    void Close() override
+    {
+#ifdef PLEASE_LOG
+        extern logging::Logger applog;
+        applog.Debug() << "FileTarget::Close";
+#endif
+        ofile.close();
+    }
 };
 
 // Can't base this class on FileSource and FileTarget classes because they use two
