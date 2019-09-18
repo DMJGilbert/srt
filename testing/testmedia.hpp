@@ -43,7 +43,7 @@ class SrtCommon
 protected:
 
     int srt_epoll = -1;
-    SRT_EPOLL_OPT m_direction = SRT_EPOLL_OPT_NONE; //< Defines which of SND or RCV option variant should be used, also to set SRT_SENDER for output
+    SRT_EPOLL_T m_direction = SRT_EPOLL_OPT_NONE; //< Defines which of SND or RCV option variant should be used, also to set SRT_SENDER for output
     bool m_blocking_mode = true; //< enforces using SRTO_SNDSYN or SRTO_RCVSYN, depending on @a m_direction
     int m_timeout = 0; //< enforces using SRTO_SNDTIMEO or SRTO_RCVTIMEO, depending on @a m_direction
     bool m_tsbpdmode = true;
@@ -69,7 +69,7 @@ public:
 
 protected:
 
-    void Error(UDT::ERRORINFO& udtError, string src);
+    void Error(UDT::ERRORINFO& udtError, string src, SRT_REJECT_REASON reason = SRT_REJ_UNKNOWN);
     void Init(string host, int port, map<string,string> par, SRT_EPOLL_OPT dir);
     int AddPoller(SRTSOCKET socket, int modes);
     virtual int ConfigurePost(SRTSOCKET sock);
