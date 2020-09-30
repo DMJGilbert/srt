@@ -47,7 +47,7 @@ set (CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS "-dynamiclib -undefined suppress -flat_
 set (CMAKE_SHARED_MODULE_CREATE_C_FLAGS "-bundle")
 set (CMAKE_SHARED_MODULE_LOADER_C_FLAG "-Wl,-bundle_loader,")
 set (CMAKE_SHARED_MODULE_LOADER_CXX_FLAG "-Wl,-bundle_loader,")
-set (CMAKE_FIND_LIBRARY_SUFFIXES ".dylib" ".so" ".a")
+set (CMAKE_FIND_LIBRARY_SUFFIXES ".dylib" ".so" ".a" ".dll")
 
 set (SRT_VERSION 1.4.2)
 set_version_variables(SRT_VERSION ${SRT_VERSION})

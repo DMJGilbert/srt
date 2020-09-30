@@ -988,7 +988,7 @@ SRT_API int64_t srt_time_now(void);
 
 SRT_API int64_t srt_connection_time(SRTSOCKET sock);
 
-int srt_getversion();
+SRT_API int srt_getversion();
 
 #ifdef __cplusplus
 }
