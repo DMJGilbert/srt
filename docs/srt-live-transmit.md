@@ -260,19 +260,19 @@ Examples:
 * `srt://[::]:5000` defines caller mode (!) with IPv6.
 
 * `srt://[::]:5000?mode=listener` defines listener mode with IPv6. If the
-* default value for `IPV6_V6ONLY` system socket option is 0, it will accept
-* also IPv4 connections.
+    default value for `IPV6_V6ONLY` system socket option is 0, it will accept
+    also IPv4 connections.
 
 * `srt://192.168.0.5:5000?mode=rendezvous` will make a rendezvous connection
-* with local address `INADDR_ANY` (IPv4) and port 5000 to a destination with
-* port 5000.
+    with local address `INADDR_ANY` (IPv4) and port 5000 to a destination with
+    port 5000.
 
 * `srt://[::1]:5000?mode=rendezvous&port=4000` will make a rendezvous
-* connection with local address `inaddr6_any` (IPv6) and port 4000 to a
-* destination with port 5000.
+    connection with local address `inaddr6_any` (IPv6) and port 4000 to a
+    destination with port 5000.
 
 * `srt://[::1]:5000?adapter=127.0.0.1&mode=rendezvous` - this URI is invalid
-* (different IP versions for binding and target address)
+    (different IP versions for binding and target address)
 
 Some parameters handled for SRT medium are specific, all others are socket options. The following parameters are handled special way by `srt-live-transmit`:
 
@@ -307,6 +307,7 @@ All other parameters are SRT socket options. The following have the following va
 | `linger`             | 0..              | `SRTO_LINGER`             | Link linger value |
 | `lossmaxttl`         | 0..              | `SRTO_LOSSMAXTTL`         | Packet reorder tolerance. |
 | `maxbw`              | 0..              | `SRTO_MAXBW`              | Bandwidth limit in bytes |
+| `mininputbw`         | 0..              | `SRTO_MININPUTBW`         | Minimum allowed estimate of `SRTO_INPUTBW` |
 | `messageapi`         | `bool`           | `SRTO_MESSAGEAPI`         | Enable SRT message mode. |
 | `minversion`         | maj.min.rev      | `SRTO_MINVERSION`         | Minimum SRT library version of a peer. |
 | `mss`                | 76..             | `SRTO_MSS`                | MTU size |
@@ -366,10 +367,10 @@ shell (using **"** **"** quotes or backslash).
 - **-chunk, -c** - use given size of the buffer. The default size is 1456 bytes, which is the maximum payload size for a single SRT packet.
 - **-verbose, -v** - Display additional information on the standard output. Note that it's not allowed to be combined with output specified as **file://con**.
 - **-statsout** - SRT statistics output: filename. Without this option specified, the statistics will be printed to the standard output.
-- **-pf**, **-statspf** - SRT statistics print format. Values: json, csv, default.
+- **-pf**, **-statspf** - SRT statistics print format. Values: json, csv, default. After a comma, options can be specified (e.g. "json,pretty").
 - **-s**, **-stats**, **-stats-report-frequency** - The frequency of SRT statistics collection, based on the number of packets.
 - **-loglevel** - lowest logging level for SRT, one of: *fatal, error, warning, note, debug* (default: *error*)
-- **-logfa** - selected FAs in SRT to be logged (default: all is enabled, that is, you can filter out log messages from only wanted FAs using this option).
+- **-logfa, -lfa** - selected FAs in SRT to be logged (default: all are enabled). See the list of FAs running `-help:logging`.
 - **-logfile:logs.txt** - Output of logs is written to file logs.txt instead of being printed to `stderr`.
 - **-help, -h** - Show help.
 - **-version** - Show version info.

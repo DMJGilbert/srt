@@ -44,7 +44,8 @@ using namespace srt_logging;
 // 10* HAICRYPT_DEF_KM_PRE_ANNOUNCE
 const int SRT_CRYPT_KM_PRE_ANNOUNCE = 0x10000;
 
-#if ENABLE_LOGGING
+namespace srt_logging
+{
 std::string KmStateStr(SRT_KM_STATE state)
 {
     switch (state)
@@ -64,8 +65,11 @@ std::string KmStateStr(SRT_KM_STATE state)
         }
     }
 }
+} // namespace
 
+using srt_logging::KmStateStr;
 
+#if ENABLE_LOGGING
 std::string CCryptoControl::FormatKmMessage(std::string hdr, int cmd, size_t srtlen)
 {
     std::ostringstream os;
@@ -445,7 +449,7 @@ void CCryptoControl::sendKeysToPeer(Whether2RegenKm regen SRT_ATR_UNUSED)
                 HLOGC(cnlog.Debug, log << "sendKeysToPeer: SENDING ki=" << ki << " len=" << m_SndKmMsg[ki].MsgLen
                         << " retry(updated)=" << m_SndKmMsg[ki].iPeerRetry);
                 m_SndKmLastTime = now;
-                m_parent->sendSrtMsg(SRT_CMD_KMREQ, (uint32_t *)m_SndKmMsg[ki].Msg, m_SndKmMsg[ki].MsgLen/sizeof(uint32_t));
+                m_parent->sendSrtMsg(SRT_CMD_KMREQ, (uint32_t *)m_SndKmMsg[ki].Msg, m_SndKmMsg[ki].MsgLen / sizeof(uint32_t));
             }
         }
     }
@@ -518,7 +522,7 @@ void CCryptoControl::regenCryptoKm(bool sendit, bool bidirectional)
             {
                 HLOGC(cnlog.Debug, log << "regenCryptoKm: SENDING ki=" << ki << " len=" << m_SndKmMsg[ki].MsgLen
                         << " retry(updated)=" << m_SndKmMsg[ki].iPeerRetry);
-                m_parent->sendSrtMsg(SRT_CMD_KMREQ, (uint32_t *)m_SndKmMsg[ki].Msg, m_SndKmMsg[ki].MsgLen/sizeof(uint32_t));
+                m_parent->sendSrtMsg(SRT_CMD_KMREQ, (uint32_t *)m_SndKmMsg[ki].Msg, m_SndKmMsg[ki].MsgLen / sizeof(uint32_t));
                 sent++;
             }
         }
@@ -580,8 +584,8 @@ bool CCryptoControl::init(HandshakeSide side, bool bidirectional SRT_ATR_UNUSED)
     // Set security-pending state, if a password was set.
     m_SndKmState = hasPassphrase() ? SRT_KM_S_SECURING : SRT_KM_S_UNSECURED;
 
-    m_KmPreAnnouncePkt = m_parent->m_uKmPreAnnouncePkt;
-    m_KmRefreshRatePkt = m_parent->m_uKmRefreshRatePkt;
+    m_KmPreAnnouncePkt = m_parent->m_config.uKmPreAnnouncePkt;
+    m_KmRefreshRatePkt = m_parent->m_config.uKmRefreshRatePkt;
 
     if ( side == HSD_INITIATOR )
     {

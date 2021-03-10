@@ -415,21 +415,24 @@ public:
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 } while (!caller_done);
 
-                const SRT_SOCKSTATUS status = srt_getsockstate(accepted_socket);
-                if (m_is_tracing)
-                {
-                    std::cerr << "LATE Socket state accepted: " << m_socket_state[status]
-                        << " (expected: " << m_socket_state[expect.socket_state[CHECK_SOCKET_ACCEPTED]] << ")\n";
-                }
+                // Special case when the expected state is "broken": if so, tolerate every possible
+                // socket state, just NOT LESS than SRTS_BROKEN, and also don't read any flags on that socket.
 
                 if (expect.socket_state[CHECK_SOCKET_ACCEPTED] == SRTS_BROKEN)
                 {
-                    EXPECT_TRUE(accepted_socket == -1 || status == SRTS_BROKEN || status == SRTS_CLOSED);
+                    EXPECT_GE(srt_getsockstate(accepted_socket), SRTS_BROKEN);
                 }
                 else
                 {
-                    EXPECT_EQ(status, expect.socket_state[CHECK_SOCKET_ACCEPTED]);
+                    EXPECT_EQ(srt_getsockstate(accepted_socket), expect.socket_state[CHECK_SOCKET_ACCEPTED]);
                     EXPECT_EQ(GetSocetkOption(accepted_socket, SRTO_SNDKMSTATE), expect.km_state[CHECK_SOCKET_ACCEPTED]);
+                }
+
+                if (m_is_tracing)
+                {
+                    const SRT_SOCKSTATUS status = srt_getsockstate(accepted_socket);
+                    std::cerr << "LATE Socket state accepted: " << m_socket_state[status]
+                        << " (expected: " << m_socket_state[expect.socket_state[CHECK_SOCKET_ACCEPTED]] << ")\n";
                 }
             }
         });
@@ -460,7 +463,22 @@ public:
 
         // If a blocking call to srt_connect() returned error, then the state is not valid,
         // but we still check it because we know what it should be. This way we may see potential changes in the core behavior.
-        EXPECT_EQ(srt_getsockstate(m_caller_socket), expect.socket_state[CHECK_SOCKET_CALLER]);
+        if (is_blocking)
+        {
+            EXPECT_EQ(srt_getsockstate(m_caller_socket), expect.socket_state[CHECK_SOCKET_CALLER]);
+        }
+        // A caller socket, regardless of the mode, if it's not expected to be connected, check negatively.
+        if (expect.socket_state[CHECK_SOCKET_CALLER] == SRTS_CONNECTED)
+        {
+            EXPECT_EQ(srt_getsockstate(m_caller_socket), SRTS_CONNECTED);
+        }
+        else
+        {
+            // If the socket is not expected to be connected (might be CONNECTING),
+            // then it is ok if it's CONNECTING or BROKEN.
+            EXPECT_NE(srt_getsockstate(m_caller_socket), SRTS_CONNECTED);
+        }
+
         EXPECT_EQ(GetSocetkOption(m_caller_socket, SRTO_RCVKMSTATE), expect.km_state[CHECK_SOCKET_CALLER]);
 
         EXPECT_EQ(srt_getsockstate(m_listener_socket), SRTS_LISTENING);
@@ -611,7 +629,7 @@ static const char* const socket_state_array[] = {
 const char* const* TestEnforcedEncryption::m_socket_state = socket_state_array+1;
 
 /** 
- * @fn TEST_F(TestEnforcedEncryption, PasswordLength)
+ * @fn TestEnforcedEncryption.PasswordLength
  * @brief The password length should belong to the interval of [10; 80]
  */
 TEST_F(TestEnforcedEncryption, PasswordLength)
@@ -646,7 +664,7 @@ TEST_F(TestEnforcedEncryption, PasswordLength)
 
 
 /**
- * @fn TEST_F(TestEnforcedEncryption, SetGetDefault)
+ * @fn TestEnforcedEncryption.SetGetDefault
  * @brief The default value for the enforced encryption should be ON
  */
 TEST_F(TestEnforcedEncryption, SetGetDefault)
